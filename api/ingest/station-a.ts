@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { rejectUnlessAuthorized } from '../_lib/auth'
-import { getSupabaseServer } from '../_lib/supabaseServer'
+import { rejectUnlessAuthorized } from '../_lib/auth.js'
+import { getSupabaseServer } from '../_lib/supabaseServer.js'
 
 /**
  * 스테이션 A (입고 외관검사) 수집 엔드포인트.
