@@ -1,6 +1,15 @@
+import { useState } from 'react'
+import { CameraFeed } from './components/CameraFeed'
 import { ChatPanel } from './components/ChatPanel'
+import { LineVisualization, type LineVisualizationNode } from './components/LineVisualization'
 import { StatusBadge } from './components/StatusBadge'
+import { SummaryBanner } from './components/SummaryBanner'
+import { VibrationChart } from './components/VibrationChart'
 import { useLatestRow } from './hooks/useLatestRow'
+import { useLatestRows } from './hooks/useLatestRows'
+import { useNow } from './hooks/useNow'
+import { formatRelativeTime } from './lib/time'
+import { judgmentToLevel, probabilityToLevel, worstLevel } from './lib/status'
 
 type StationAJudgment = {
   judgment: '양품' | '불량'
@@ -26,16 +35,24 @@ type StationCPrediction = {
   created_at: string
 }
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString('ko-KR', { hour12: false })
+function Skeleton() {
+  return (
+    <div className="space-y-2">
+      <div className="h-4 w-24 animate-pulse rounded bg-neutral-100" />
+      <div className="h-3 w-32 animate-pulse rounded bg-neutral-100" />
+    </div>
+  )
 }
 
-function StationA() {
-  const { row, loading } = useLatestRow<StationAJudgment>(
-    'station_a_judgments',
-    'created_at',
-  )
-
+function StationA({
+  row,
+  loading,
+  now,
+}: {
+  row: StationAJudgment | null
+  loading: boolean
+  now: number
+}) {
   return (
     <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
       <div className="text-xs font-semibold text-blue-600">스테이션 A</div>
@@ -44,7 +61,7 @@ function StationA() {
 
       <div className="mt-3 border-t border-neutral-100 pt-3">
         {loading ? (
-          <div className="text-sm text-neutral-400">불러오는 중...</div>
+          <Skeleton />
         ) : row ? (
           <>
             <StatusBadge status={row.judgment} />
@@ -52,7 +69,7 @@ function StationA() {
               신뢰도 {(row.confidence * 100).toFixed(0)}%
             </span>
             <div className="mt-1 text-xs text-neutral-400">
-              {formatTime(row.created_at)} 갱신
+              {formatRelativeTime(row.created_at, now)} 갱신
             </div>
           </>
         ) : (
@@ -63,12 +80,15 @@ function StationA() {
   )
 }
 
-function StationB() {
-  const { row, loading } = useLatestRow<StationBJudgment>(
-    'station_b_judgments',
-    'created_at',
-  )
-
+function StationB({
+  row,
+  loading,
+  now,
+}: {
+  row: StationBJudgment | null
+  loading: boolean
+  now: number
+}) {
   return (
     <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
       <div className="text-xs font-semibold text-blue-600">스테이션 B</div>
@@ -77,7 +97,7 @@ function StationB() {
 
       <div className="mt-3 border-t border-neutral-100 pt-3">
         {loading ? (
-          <div className="text-sm text-neutral-400">불러오는 중...</div>
+          <Skeleton />
         ) : row ? (
           <>
             <StatusBadge status={row.status} />
@@ -85,7 +105,7 @@ function StationB() {
               <div className="mt-1 text-sm text-neutral-500">{row.reason}</div>
             )}
             <div className="mt-1 text-xs text-neutral-400">
-              {formatTime(row.created_at)} 갱신
+              {formatRelativeTime(row.created_at, now)} 갱신
             </div>
           </>
         ) : (
@@ -96,22 +116,28 @@ function StationB() {
   )
 }
 
-function StationC() {
+function StationC({
+  prediction,
+  predictionLoading,
+  now,
+}: {
+  prediction: StationCPrediction | null
+  predictionLoading: boolean
+  now: number
+}) {
   const { row, loading } = useLatestRow<StationCRaw>('station_c_raw', 'measured_at')
-  const { row: prediction, loading: predictionLoading } = useLatestRow<StationCPrediction>(
-    'station_c_predictions',
-    'created_at',
-  )
+  const { rows: history } = useLatestRows<StationCRaw>('station_c_raw', 'measured_at', 40)
 
   const riskPct = prediction ? prediction.probability * 100 : null
+  const riskLevel = probabilityToLevel(prediction?.probability)
   const riskColor =
-    riskPct == null
-      ? 'text-neutral-400'
-      : riskPct >= 70
-        ? 'text-red-600'
-        : riskPct >= 30
-          ? 'text-amber-600'
-          : 'text-emerald-600'
+    riskLevel === 'critical'
+      ? 'text-red-600'
+      : riskLevel === 'warning'
+        ? 'text-amber-600'
+        : riskLevel === 'good'
+          ? 'text-emerald-600'
+          : 'text-neutral-400'
 
   return (
     <div className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
@@ -123,7 +149,7 @@ function StationC() {
 
       <div className="mt-3 border-t border-neutral-100 pt-3">
         {loading ? (
-          <div className="text-sm text-neutral-400">불러오는 중...</div>
+          <Skeleton />
         ) : row ? (
           <>
             <div className="text-sm text-neutral-700">
@@ -131,7 +157,7 @@ function StationC() {
               {row.temperature != null && ` · 온도 ${row.temperature.toFixed(1)}°C`}
             </div>
             <div className="mt-1 text-xs text-neutral-400">
-              {formatTime(row.measured_at)} 갱신
+              {formatRelativeTime(row.measured_at, now)} 갱신
             </div>
           </>
         ) : (
@@ -140,8 +166,12 @@ function StationC() {
       </div>
 
       <div className="mt-3 border-t border-neutral-100 pt-3">
+        <VibrationChart points={history} />
+      </div>
+
+      <div className="mt-3 border-t border-neutral-100 pt-3">
         {predictionLoading ? (
-          <div className="text-sm text-neutral-400">불러오는 중...</div>
+          <Skeleton />
         ) : prediction ? (
           <>
             <div className={`text-sm font-semibold ${riskColor}`}>
@@ -151,7 +181,7 @@ function StationC() {
               근거: {prediction.shap_top3[0]?.feature ?? '-'}
             </div>
             <div className="mt-1 text-xs text-neutral-400">
-              {formatTime(prediction.created_at)} 예측
+              {formatRelativeTime(prediction.created_at, now)} 예측
             </div>
           </>
         ) : (
@@ -162,7 +192,53 @@ function StationC() {
   )
 }
 
+function Overview() {
+  const now = useNow()
+  const a = useLatestRow<StationAJudgment>('station_a_judgments', 'created_at')
+  const b = useLatestRow<StationBJudgment>('station_b_judgments', 'created_at')
+  const c = useLatestRow<StationCPrediction>('station_c_predictions', 'created_at')
+
+  const nodes: LineVisualizationNode[] = [
+    {
+      key: 'a',
+      label: 'A. 외관검사',
+      sublabel: a.row?.judgment ?? '대기 중',
+      level: judgmentToLevel(a.row?.judgment),
+    },
+    {
+      key: 'b',
+      label: 'B. 중량검사',
+      sublabel: b.row?.status ?? '대기 중',
+      level: judgmentToLevel(b.row?.status),
+    },
+    {
+      key: 'c',
+      label: 'C. 예지보전',
+      sublabel: c.row ? `이상확률 ${(c.row.probability * 100).toFixed(0)}%` : '대기 중',
+      level: probabilityToLevel(c.row?.probability),
+    },
+  ]
+  const overall = worstLevel(nodes.map((n) => n.level))
+
+  return (
+    <div className="space-y-4">
+      <SummaryBanner level={overall} />
+      <LineVisualization nodes={nodes} />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StationA row={a.row} loading={a.loading} now={now} />
+        <StationB row={b.row} loading={b.loading} now={now} />
+        <StationC prediction={c.row} predictionLoading={c.loading} now={now} />
+      </div>
+
+      <ChatPanel />
+    </div>
+  )
+}
+
 function App() {
+  const [tab, setTab] = useState<'overview' | 'camera'>('overview')
+
   return (
     <main className="min-h-screen bg-neutral-50 p-8">
       <h1 className="text-2xl font-bold text-neutral-900">MiniLine AI</h1>
@@ -170,15 +246,29 @@ function App() {
         미니 생산라인 디지털 트윈 대시보드 — Supabase Realtime 연동
       </p>
 
-      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StationA />
-        <StationB />
-        <StationC />
+      <div className="mt-6 flex gap-1 border-b border-neutral-200">
+        {(
+          [
+            ['overview', '라인 현황'],
+            ['camera', '카메라'],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            className={`border-b-2 px-4 py-2 text-sm font-semibold ${
+              tab === key
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-neutral-500 hover:text-neutral-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      <div className="mt-4 grid grid-cols-1">
-        <ChatPanel />
-      </div>
+      <div className="mt-6">{tab === 'overview' ? <Overview /> : <CameraFeed />}</div>
     </main>
   )
 }
