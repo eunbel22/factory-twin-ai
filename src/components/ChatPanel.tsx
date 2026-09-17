@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { formatChatText } from './formatChatText'
 
 type Message = {
   role: 'user' | 'assistant'
@@ -46,7 +47,7 @@ export function ChatPanel() {
       <div className="text-xs font-semibold text-blue-600">챗봇</div>
       <div className="mt-1 font-semibold text-neutral-900">라인 상태 질의</div>
 
-      <div className="mt-3 flex max-h-72 flex-col gap-2 overflow-y-auto">
+      <div className="mt-3 flex max-h-96 flex-col gap-2 overflow-y-auto">
         {messages.length === 0 && (
           <div className="text-sm text-neutral-400">
             예: "지금 라인 상태 어때?", "스테이션 C 왜 위험해?"
@@ -58,10 +59,10 @@ export function ChatPanel() {
             className={
               m.role === 'user'
                 ? 'ml-auto max-w-[85%] rounded-lg bg-blue-600 px-3 py-2 text-sm text-white'
-                : 'mr-auto max-w-[85%] rounded-lg bg-neutral-100 px-3 py-2 text-sm text-neutral-800'
+                : 'mr-auto max-w-[95%] rounded-lg bg-neutral-100 px-3 py-2 text-sm text-neutral-800'
             }
           >
-            {m.text}
+            {m.role === 'assistant' ? formatChatText(m.text) : m.text}
           </div>
         ))}
         {sending && <div className="text-sm text-neutral-400">생각하는 중...</div>}
