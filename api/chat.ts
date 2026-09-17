@@ -87,26 +87,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  const context = await buildContext()
-  const contextText = contextToText(context)
+  try {
+    const context = await buildContext()
+    const contextText = contextToText(context)
 
-  const ai = new GoogleGenAI({ apiKey })
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: question,
-    config: {
-      systemInstruction: `${SYSTEM_PROMPT}\n\n[최신 데이터]\n${contextText}`,
-    },
-  })
+    const ai = new GoogleGenAI({ apiKey })
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.6-flash',
+      contents: question,
+      config: {
+        systemInstruction: `${SYSTEM_PROMPT}\n\n[최신 데이터]\n${contextText}`,
+      },
+    })
 
-  const answer = response.text ?? ''
+    const answer = response.text ?? ''
 
-  const supabase = getSupabaseServer()
-  await supabase.from('chat_logs').insert({
-    question,
-    context_snapshot: context,
-    answer,
-  })
+    const supabase = getSupabaseServer()
+    await supabase.from('chat_logs').insert({
+      question,
+      context_snapshot: context,
+      answer,
+    })
 
-  res.status(200).json({ answer })
+    res.status(200).json({ answer })
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : '알 수 없는 오류' })
+  }
 }
